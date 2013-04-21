@@ -110,7 +110,7 @@ class SplitTimeSelectWidget(forms.MultiWidget):
                     hour=value.hour,
                     minute=value.minute,
                     second=value.second,
-                    tzinfo=timezone.get_default_timezone())
+                    tzinfo=pytz.utc)
             value = timezone.localtime(value)
             return [
                 int(value.strftime("%I")),
@@ -212,7 +212,7 @@ class SplitDateTimeSelectWidget(forms.MultiWidget):
                     hour=value.hour,
                     minute=value.minute,
                     second=value.second,
-                    tzinfo=timezone.get_default_timezone())
+                    tzinfo=pytz.utc)
             value = timezone.localtime(value)
             return [
                 value.month,
@@ -262,35 +262,28 @@ class SplitDateTimeSelectField(forms.MultiValueField):
 class TimeStampSet(object):
 
     def _set_ts(self, field_name, kwargs):
-        current_timestamp = timezone.now().astimezone(
-            timezone.get_current_timezone())
+        current_timestamp = timezone.now()
+
         if 'initial' not in kwargs:
             kwargs['initial'] = {}
-        # fetch instance's time for initial display
-        # since ts is not in this model's Meta.fields
+
         if kwargs.get('instance', None) is not None:
             kwargs['initial'].update(
                 { field_name: getattr(kwargs.get('instance'), field_name) })
-            #if kwargs['initial'].get(field_name, None) is None:
-            #    kwargs['initial'].update(
-            #        { field_name: current_timestamp })
         else:
             kwargs['initial'].update(
                 { field_name: current_timestamp })
         return kwargs
 
-    def _set_time(self, kwargs):
+    def _set_time(self, field_name, kwargs):
         if 'initial' not in kwargs:
             kwargs['initial'] = {}
 
         if kwargs.get('instance', None) is not None:
             kwargs['initial'].update(
-                { 'start': kwargs.get('instance').start })
-            kwargs['initial'].update(
-                { 'end': kwargs.get('instance').end })
+                { field_name: getattr(kwargs.get('instance'), field_name) })
         else:
-            kwargs['initial'].update({ 'start': timezone.now().time() })
-            kwargs['initial'].update({ 'end': timezone.now().time() })
+            kwargs['initial'].update({ field_name: timezone.now().time() })
         return kwargs
 
     def _set_datetime_on(self, field_names, kwargs):
