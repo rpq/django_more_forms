@@ -6,6 +6,7 @@ import pytz
 from django.utils import timezone
 from django import forms
 from django.utils.safestring import mark_safe
+from django.db.models import TimeField
 
 class CalendarOptionValues(object):
 
@@ -167,10 +168,10 @@ class SplitTimeSelectField(forms.MultiValueField):
                 data_list[0],
                 data_list[1],
                 data_list[2],)
-            result = timezone.make_aware(
-                datetime.datetime.strptime(to_dt, '%m/%d/%Y %I:%M %p'),
+            value = datetime.datetime.strptime(to_dt, '%m/%d/%Y %I:%M %p'),
+            value = timezone.make_aware(value,
                 timezone.get_current_timezone())
-            return result
+            return value
         return None
 
 class SplitDateTimeSelectWidget(forms.MultiWidget):
@@ -304,9 +305,19 @@ class TimeStampSet(object):
             kwargs['initial'] = {}
 
         for field_name in field_names:
-            if kwargs.get('instance', None) is not None:
-                t = getattr(kwargs.get('instance'), field_name)
-                kwargs['initial'].update({ field_name: t })
+            instance_ = kwargs.get('instance', None)
+            if instance_ is not None:
+                value = getattr(instance_, field_name)
+                if not timezone.is_aware(value):
+                    value = datetime.datetime(
+                        month=4,
+                        day=22,
+                        year=2000,
+                        hour=value.hour,
+                        minute=value.minute,
+                        second=value.second,
+                        tzinfo=pytz.utc).time()
+                kwargs['initial'].update({ field_name: value })
             else:
                 kwargs['initial'].update(
                     { field_name: timezone.now().time() })
