@@ -26,7 +26,7 @@ class CalendarOptionValues(object):
 
     @classmethod
     def years(cls):
-        years = [(x, x,) for x in xrange(timezone.now().year-1, timezone.now().year+1)]
+        years = [(x, x,) for x in xrange(2010, timezone.now().year+1)]
         years.insert(0, cls.BLANK_CHOICE)
         return years
 
@@ -107,7 +107,7 @@ class SplitTimeSelectWidget(forms.MultiWidget):
         if value:
             if not timezone.is_aware(value):
                 value = datetime.datetime(
-                    month=4, day=22, year=2000,
+                    month=4, day=22, year=2010,
                     hour=value.hour,
                     minute=value.minute,
                     second=value.second,
@@ -164,7 +164,7 @@ class SplitTimeSelectField(forms.MultiValueField):
 
     def compress(self, data_list):
         if data_list:
-            to_dt = '4/22/2000 %s:%s %s' % (
+            to_dt = '4/22/2010 %s:%s %s' % (
                 data_list[0],
                 data_list[1],
                 data_list[2],)
@@ -312,7 +312,7 @@ class TimeStampSet(object):
                     value = datetime.datetime(
                         month=4,
                         day=22,
-                        year=2000,
+                        year=2010,
                         hour=value.hour,
                         minute=value.minute,
                         second=value.second,
