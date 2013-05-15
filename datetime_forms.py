@@ -293,11 +293,12 @@ class TimeStampSet(object):
 
         for field_name in field_names:
             if kwargs.get('instance', None) is not None:
-                dt = getattr(kwargs.get('instance'), field_name)
-                new_dt = dt.astimezone(timezone.get_default_timezone())
-                kwargs['initial'].update({ field_name: new_dt })
-            else:
-                kwargs['initial'].update({ field_name: timezone.now() })
+                dt = getattr(
+                    kwargs.get('instance'), field_name)
+                if dt is not None:
+                    new_dt = dt.astimezone(
+                        timezone.get_current_timezone())
+                    kwargs['initial'].update({ field_name: new_dt })
         return kwargs
 
     def _set_time_on(self, field_names, kwargs):
