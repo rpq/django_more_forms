@@ -6,9 +6,10 @@ import pytz
 from django.utils import timezone
 from django import forms
 from django.utils.safestring import mark_safe
-from django.db.models import TimeField
 
-class CalendarOptionValues(object):
+import time_forms
+
+class DateOptionChoices(object):
 
     BLANK_CHOICE = ('', '---',)
 
@@ -30,43 +31,33 @@ class CalendarOptionValues(object):
         years.insert(0, cls.BLANK_CHOICE)
         return years
 
-class TimeOptionValues(object):
+class MonthSelectWidget(forms.SelectWidget):
 
-    BLANK_CHOICE = ('', '---',)
+    def __init__(self, attrs={'class': 'hours-select'}):
+        self.choices = DateOptionChoices.months()
+        super(MonthSelectWidget, self).__init__(attrs)
 
-    @classmethod
-    def hours(cls):
-        hours = [(x, x,) for x in xrange(1,13)]
-        hours.insert(0, cls.BLANK_CHOICE)
-        return hours
+class DaySelectWidget(forms.SelectWidget):
 
-    @classmethod
-    def minutes(cls):
-        minutes = [(x,'0' + str(x)) for x in xrange(0, 10, 5)]
-        minutes.extend([(x, x,) for x in xrange(10, 60, 5)])
-        minutes.insert(0, cls.BLANK_CHOICE)
-        return minutes
+    def __init__(self, attrs={'class': 'minutes-select'}):
+        self.choices = DateOptionChoices.days()
+        super(DaySelectWidget, self).__init__(attrs)
 
-    @classmethod
-    def ampm(cls):
-        ampm = (cls.BLANK_CHOICE, ('am', 'AM',), ('pm', 'PM',),)
-        return ampm
+class YearSelectWidget(forms.SelectWidget):
 
-class DateTimeOptionValues(CalendarOptionValues, TimeOptionValues):
-    pass
-
-# widgets
+    def __init__(self, attrs={'class': ampm-select}):
+        self.choices = DateOptionChoices.years()
+        super(YearSelectWidget, self).__init__(attrs)
 
 class SplitDateSelectWidget(forms.MultiWidget):
+
     FIELD_NAMES = ('months', 'days', 'years',)
 
     def __init__(self, attrs=None):
         widgets = []
-        for field_name in self.FIELD_NAMES:
-            choice = getattr(CalendarOptionValues, field_name)
-            select_option = forms.Select(choices=choice(),
-                attrs={'class': field_name + '-select'})
-            widgets.append(select_option)
+        widgets.append(MonthSelectWidget())
+        widgets.append(DaySelectWidget())
+        widgets.append(YearSelectWidget())
         widgets = tuple(widgets)
         super(SplitDateSelectWidget, self).__init__(
             widgets, attrs)
@@ -85,55 +76,19 @@ class SplitDateSelectWidget(forms.MultiWidget):
             return [value.month, value.day, value.year,]
         return [None, None, None,]
 
-class SplitTimeSelectWidget(forms.MultiWidget):
-    FIELD_NAMES = ('hours', 'minutes', 'ampm',)
+class SplitDateField(forms.MultiValueField):
 
-    def __init__(self, attrs=None):
-        widgets = []
-        for field_name in self.FIELD_NAMES:
-            choice = getattr(TimeOptionValues, field_name)
-            select_option = forms.Select(choices=choice(),
-                attrs={'class': field_name + '-select'})
-            widgets.append(select_option)
-        widgets = tuple(widgets)
-
-        super(SplitTimeSelectWidget, self).__init__(
-            widgets, attrs)
-
-    def _get_five_minute(self, actual_minute):
-        return int(math.ceil(int(actual_minute)/5)*5)
-
-    def decompress(self, value):
-        if value:
-            if not timezone.is_aware(value):
-                value = datetime.datetime(
-                    month=4, day=22, year=2010,
-                    hour=value.hour,
-                    minute=value.minute,
-                    second=value.second,
-                    tzinfo=pytz.utc)
-            value = timezone.localtime(value)
-            return [
-                int(value.strftime("%I")),
-                self._get_five_minute(value.strftime("%M")),
-                value.strftime("%p").lower()]
-        return [None, None, None]
-
-# fields
-
-class SplitDateSelectField(forms.MultiValueField):
     FIELD_NAMES = ('months', 'days', 'years',)
     widget = SplitDateSelectWidget
 
     def __init__(self, *args, **kwargs):
         fields = []
         for field_name in self.FIELD_NAMES:
-            choice = getattr(CalendarOptionValues, field_name)
+            choice = getattr(DateOptionChoices, field_name)
             fields.append(forms.ChoiceField(choices=choice()))
         fields = tuple(fields)
 
-        super(SplitDateSelectField, self).__init__(
-            fields, *args, **kwargs)
+        super(SplitDateField, self).__init__(fields, *args, **kwargs)
 
     def compress(self, data_list):
         if data_list:
@@ -147,63 +102,26 @@ class SplitDateSelectField(forms.MultiValueField):
             return result
         return None
 
-class SplitTimeSelectField(forms.MultiValueField):
-    FIELD_NAMES = ('hours', 'minutes', 'ampm',)
-    widget = SplitTimeSelectWidget
-
-    def __init__(self, *args, **kwargs):
-        fields = []
-        for field_name in self.FIELD_NAMES:
-            choice = getattr(TimeOptionValues, field_name)
-            choice_field = forms.ChoiceField(choices=choice())
-            fields.append(choice_field)
-        fields = tuple(fields)
-
-        super(SplitTimeSelectField, self).__init__(
-            fields, *args, **kwargs)
-
-    def compress(self, data_list):
-        if data_list:
-            to_dt = '4/22/2010 %s:%s %s' % (
-                data_list[0],
-                data_list[1],
-                data_list[2],)
-            value = datetime.datetime.strptime(to_dt, '%m/%d/%Y %I:%M %p'),
-            value = timezone.make_aware(value,
-                timezone.get_current_timezone())
-            return value
-        return None
-
-class SplitDateTimeSelectWidget(forms.MultiWidget):
+class SplitDateTimeSelectWidget(SplitDateSelectWidget,
+    time_forms.SplitTimeSelectWidget):
 
     def __init__(self, attrs=None):
-        widgets = []
-        for field_name in itertools.chain(SplitDateSelectWidget.FIELD_NAMES, SplitTimeSelectWidget.FIELD_NAMES):
-            if field_name in SplitDateSelectWidget.FIELD_NAMES:
-                class_name = CalendarOptionValues
-            elif field_name in SplitTimeSelectWidget.FIELD_NAMES:
-                class_name = TimeOptionValues
-            else:
-                raise Exception
-            choice = getattr(class_name, field_name)
-            select_option = forms.Select(choices=choice(),
-                attrs={'class': field_name + '-select'})
-            widgets.append(select_option)
-        widgets = tuple(widgets)
-        super(SplitDateTimeSelectWidget, self).__init__(
-            widgets, attrs)
+        SplitDateSelectWidget.__init__(self, widgets, attrs)
+        time_forms.SplitTimeSelectWidget.__init__(self, widgets, attrs)
 
     def render(self, *args, **kwargs):
-        r = super(SplitDateTimeSelectWidget, self).render(
-            *args, **kwargs)
-        r = r.replace('<select class="hours-select" id="id_timestamp_3"',
-            '</div><div class="control-group"><select class="hours-select" id="id_timestamp_3"')
-        return mark_safe(r)
-
-    def _get_five_minute(self, actual_minute):
-        return int(math.ceil(int(actual_minute)/5)*5)
+        date_html = \
+            SplitDateSelectWidget.render(self, *args, **kwargs)
+        time_html = \
+            time_forms.SplitTimeSelectWidget.__init__(self, *args,
+                **kwargs)
+        time_html = time_html.replace('<select class="hours-select" id="id_timestamp_3"', '</div><div class="control-group"><select class="hours-select" id="id_timestamp_3"')
+        return mark_safe(date_html + time_html)
 
     def decompress(self, value):
+        if not value:
+            return None
+
         if value:
             if not timezone.is_aware(value):
                 value = datetime.datetime(
@@ -220,43 +138,34 @@ class SplitDateTimeSelectWidget(forms.MultiWidget):
                 value.day,
                 value.year,
                 int(value.strftime("%I")),
-                self._get_five_minute(value.strftime("%M")),
+                round_to_five_minutes(value.strftime("%M")),
                 value.strftime("%p").lower()]
+
         return [None, None, None, None, None, None]
 
 class SplitDateTimeSelectField(forms.MultiValueField):
+
     widget = SplitDateTimeSelectWidget
 
     def __init__(self, *args, **kwargs):
         fields = []
-        for field_name in itertools.chain(SplitDateSelectField.FIELD_NAMES, SplitTimeSelectField.FIELD_NAMES):
-            if field_name in SplitDateSelectField.FIELD_NAMES:
-                class_name = CalendarOptionValues
-            elif field_name in SplitTimeSelectField.FIELD_NAMES:
-                class_name = TimeOptionValues
-            else:
-                raise Exception
-            choice = getattr(class_name, field_name)
-            choice_field = forms.ChoiceField(choices=choice())
-            fields.append(choice_field)
+        fields.extend(SplitDateField().fields)
+        fields.extend(time_forms.SplitTimeField().fields)
         fields = tuple(fields)
-        super(SplitDateTimeSelectField, self).__init__(
-            fields, *args, **kwargs)
+        super(SplitDateTimeSelectField, self).__init__(fields, *args,
+            **kwargs)
 
     def compress(self, data_list):
+        if not data_list:
+            return None
+
         if data_list:
-            to_dt = '%s/%s/%s %s:%s %s' % (
-                data_list[0],
-                data_list[1],
-                data_list[2],
-                data_list[3],
-                data_list[4],
-                data_list[5],)
+            to_dt = '%s/%s/%s %s:%s %s' % (data_list[0], data_list[1],
+                data_list[2], data_list[3], data_list[4], data_list[5],)
             result = timezone.make_aware(
                 datetime.datetime.strptime(to_dt, '%m/%d/%Y %I:%M %p'),
                 timezone.get_current_timezone())
             return result
-        return None
 
 # django datetime form helper
 
@@ -324,6 +233,9 @@ class TimeStampSet(object):
                     { field_name: timezone.now().time() })
         return kwargs
 
+
+
+
 # duration
 
 def _get_time_metric_choices():
@@ -334,11 +246,8 @@ def _get_time_metric_choices():
 
 class DurationForm(forms.Form):
 
-    time_amount = forms.IntegerField(required=False,
-        label="",
-        min_value=1)
-    time_metric = forms.ChoiceField(required=False,
-        label="",
+    time_amount = forms.IntegerField(required=False, label="", min_value=1)
+    time_metric = forms.ChoiceField(required=False, label="",
         choices=_get_time_metric_choices())
 
     def clean(self):
