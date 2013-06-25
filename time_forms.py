@@ -123,6 +123,8 @@ class SplitTimeField(django_forms.MultiValueField):
             s = time.strptime('{0}:{1} {2}'.format(
                 hour, min, am_or_pm),
                 TIME_FORMAT)
+            # convert to datetime.time
+            s = datetime.datetime(*s[:6]).time()
             return s
 
 if __name__ == '__main__':
@@ -254,5 +256,19 @@ if __name__ == '__main__':
             self.assertIn(minute_assert, self.rendered)
             self.assertIn(ampm_assert, self.rendered)
 
+    class SplitTimeFieldTest(SimpleTestCase):
+
+        def test_create(self):
+            field = SplitTimeField()
+            self.assertTrue(field)
+
+        def test_clean_pass(self):
+            field = SplitTimeField()
+            now = datetime.datetime.now().time()
+            value = field.clean([now.hour,
+                round_to_five_minutes(now.minute),
+                get_ampm(now).lower()])
+            # 'time' is from datetime.time, not time module
+            self.assertEqual(value.__class__.__name__, 'time')
 
     unittest.main()
