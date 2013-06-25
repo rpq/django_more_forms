@@ -29,10 +29,13 @@ def to_12_hr(hour):
         return 12
     elif hour > 12 and hour < 24:
         return hour - 12
-    else:
+    elif hour > 0 and hour <= 12:
         return hour
+    else:
+        return None
 
 def get_ampm(value):
+
     def int_ampm(int_value):
         try:
             int_value = int(int_value)
@@ -41,8 +44,10 @@ def get_ampm(value):
 
         if int_value >= 12 and int_value < 24:
             return 'PM'
-        else:
+        elif int_value >= 0 and int_value < 12:
             return 'AM'
+        else:
+            return None
 
     if isinstance(value, (datetime.datetime, datetime.time,)):
         return value.strftime('%p')
@@ -164,6 +169,7 @@ if __name__ == '__main__':
     from django.test import SimpleTestCase
 
     class TestGetAmPm(SimpleTestCase):
+
         def test_get_with_int(self):
             self.assertEqual(get_ampm(1), 'AM')
             self.assertEqual(get_ampm(5), 'AM')
@@ -190,6 +196,15 @@ if __name__ == '__main__':
             self.assertEqual(get_ampm('5'), 'AM')
             self.assertEqual(get_ampm('12'), 'PM')
             self.assertEqual(get_ampm('20'), 'PM')
+
+        def test_fail_get_ampm_out_of_range(self):
+            self.assertEqual(get_ampm('25'), None)
+
+        def test_fail_get_ampm_invalid_int(self):
+            self.assertEqual(get_ampm('s4'), None)
+
+        def test_fail_get_ampm_invalid_arg(self):
+            self.assertEqual(get_ampm([]), None)
 
     class TimeOptionChoicesTest(SimpleTestCase):
 
@@ -309,6 +324,11 @@ if __name__ == '__main__':
             self.assertIn(minute_assert, html_output)
             self.assertIn(ampm_assert, html_output)
 
+        def test_empty_field_value_render(self):
+            field = SplitTimeField()
+            self.assertRaises(django_forms.ValidationError,
+                field.clean, [])
+
     class TimeConversion(SimpleTestCase):
 
         def test_to_24_input_is_twelve_pass(self):
@@ -332,5 +352,14 @@ if __name__ == '__main__':
             for twenty_four, twelve in valid:
                 converted_twelve = to_12_hr(twenty_four)
                 self.assertEqual(twelve, converted_twelve)
+
+        def test_to_24_invalid_ampm(self):
+            self.assertEqual(to_24_hr(12, 'as'), None)
+
+        def test_to_24_invalid_time_range(self):
+            self.assertEqual(to_24_hr(25, 'am'), None)
+
+        def test_to_12_invalid_time_range(self):
+            self.assertEqual(to_12_hr(25), None)
 
     unittest.main()
