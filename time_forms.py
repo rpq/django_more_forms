@@ -7,6 +7,31 @@ from django import forms as django_forms
 
 TIME_FORMAT = "%I:%M %p"
 
+def to_24_hr(hour, am_pm):
+    hour = int(hour)
+    if hour <= 12 and hour >= 1:
+        if am_pm == 'am':
+            if hour == 12:
+                return 0
+            else:
+                return hour
+        elif am_pm == 'pm':
+            if hour == 12:
+                return 12
+            else:
+                return hour + 12
+    return None
+
+def to_12_hr(hour):
+    hour = int(hour)
+
+    if hour == 0:
+        return 12
+    elif hour > 12 and hour < 24:
+        return hour - 12
+    else:
+        return hour
+
 def get_ampm(value):
     def int_ampm(int_value):
         try:
@@ -87,11 +112,11 @@ class SplitTimeSelectWidget(django_widgets.MultiWidget):
             return [None, None, None]
 
         if value:
-            hour = value.hour
-            min = value.minute
-            am_or_pm = get_ampm(hour).lower()
+            hour = to_12_hr(value.hour)
+            min = round_to_five_minutes(value.minute)
+            am_or_pm = get_ampm(value.hour).lower()
 
-            return [hour, round_to_five_minutes(min), am_or_pm,]
+            return [hour, min, am_or_pm,]
 
 class SplitTimeField(django_forms.MultiValueField):
 
@@ -239,22 +264,22 @@ if __name__ == '__main__':
             self.assertIn('<select class="ampm-select" name="time-select_2', self.rendered)
 
         def test_widget_with_value(self):
-            now = datetime.datetime.now().time()
-            hour = now.hour
-            minute = now.minute
-            ampm = get_ampm(now).lower()
-
-            # tests decompress
-            self.rendered = self.w.render('time-select', now)
-            hour_assert = '<option value="{0}" selected="selected">'.format(hour)
-            minute_assert = '<option value="{0}" selected="selected">'.format(
-                round_to_five_minutes(minute))
-            ampm_assert = '<option value="{0}" selected="selected">'.format(
-                ampm)
-
-            self.assertIn(hour_assert, self.rendered)
-            self.assertIn(minute_assert, self.rendered)
-            self.assertIn(ampm_assert, self.rendered)
+            for hr_value, hr_display in TimeOptionChoices.hours():
+                for min_value, min_display in TimeOptionChoices.minutes():
+                    for ampm_value, ampm_display in TimeOptionChoices.ampm():
+                        if hr_value and min_value and ampm_value:
+                            # tests decompress
+                            exact_time = datetime.time(
+                                hour=to_24_hr(hr_value, ampm_value),
+                                minute=min_value)
+                            self.rendered = self.w.render('time-select',
+                                exact_time)
+                            hour_assert = '<option value="{0}" selected="selected">{1}'.format(hr_value, hr_display)
+                            minute_assert = '<option value="{0}" selected="selected">{1}'.format(min_value, min_display)
+                            ampm_assert = '<option value="{0}" selected="selected">{1}'.format(ampm_value, ampm_display)
+                            self.assertIn(hour_assert, self.rendered)
+                            self.assertIn(minute_assert, self.rendered)
+                            self.assertIn(ampm_assert, self.rendered)
 
     class SplitTimeFieldTest(SimpleTestCase):
 
@@ -264,11 +289,24 @@ if __name__ == '__main__':
 
         def test_clean_pass(self):
             field = SplitTimeField()
-            now = datetime.datetime.now().time()
-            value = field.clean([now.hour,
-                round_to_five_minutes(now.minute),
-                get_ampm(now).lower()])
-            # 'time' is from datetime.time, not time module
-            self.assertEqual(value.__class__.__name__, 'time')
+            value = field.clean(['1', '5', 'am'])
+            self.assertEqual(value, datetime.time(1, 5))
+            value = field.clean(['5', '5', 'am'])
+            self.assertEqual(value, datetime.time(5, 5))
+            value = field.clean(['12', '5', 'pm'])
+            self.assertEqual(value, datetime.time(12, 5))
+            value = field.clean(['8', '5', 'pm'])
+            self.assertEqual(value, datetime.time(20, 5))
+
+        def test_initial_current_time(self):
+            current_time = datetime.datetime.now().time()
+            field = SplitTimeField()
+            html_output = str(field.widget.render('testing', current_time))
+            hour_assert = '<option value="{0}" selected="selected">'.format(current_time.hour)
+            minute_assert = '<option value="{0}" selected="selected">'.format(round_to_five_minutes(current_time.minute))
+            ampm_assert = '<option value="{0}" selected="selected">'.format(get_ampm(current_time.hour).lower())
+            self.assertIn(hour_assert, html_output)
+            self.assertIn(minute_assert, html_output)
+            self.assertIn(ampm_assert, html_output)
 
     unittest.main()
