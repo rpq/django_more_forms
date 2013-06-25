@@ -1,7 +1,8 @@
 import math
 import time
 
-from django import forms
+from django.forms import widgets as django_widgets
+from django import forms as django_forms
 
 TIME_FORMAT = "%I:%M %p"
 
@@ -30,27 +31,25 @@ class TimeOptionChoices(object):
         ampm = (cls.BLANK_CHOICE, ('am', 'AM',), ('pm', 'PM',),)
         return ampm
 
-class HourSelectWidget(forms.SelectWidget):
+class HourSelectWidget(django_widgets.Select):
 
     def __init__(self, attrs={'class': 'hours-select'}):
-        self.choices = TimeOptionChoices.hours()
         super(HourSelectWidget, self).__init__(attrs)
+        self.choices = TimeOptionChoices.hours()
 
-class MinuteSelectWidget(forms.SelectWidget):
+class MinuteSelectWidget(django_widgets.Select):
 
     def __init__(self, attrs={'class': 'minutes-select'}):
-        self.choices = TimeOptionChoices.minutes()
         super(MinuteSelectWidget, self).__init__(attrs)
+        self.choices = TimeOptionChoices.minutes()
 
-class AmPmSelectWidget(forms.SelectWidget):
+class AmPmSelectWidget(django_widgets.Select):
 
-    def __init__(self, attrs={'class': ampm-select}):
-        self.choices = TimeOptionChoices.ampm()
+    def __init__(self, attrs={'class': 'ampm-select'}):
         super(AmPmSelectWidget, self).__init__(attrs)
+        self.choices = TimeOptionChoices.ampm()
 
-class SplitTimeSelectWidget(forms.MultiWidget):
-
-    FIELD_NAMES = ('hours', 'minutes', 'ampm',)
+class SplitTimeSelectWidget(django_widgets.MultiWidget):
 
     def __init__(self, attrs=None):
         widgets = []
@@ -59,8 +58,7 @@ class SplitTimeSelectWidget(forms.MultiWidget):
         widgets.append(AmPmSelectWidget())
         widgets = tuple(widgets)
 
-        super(SplitTimeSelectWidget, self).__init__(
-            widgets, attrs)
+        super(SplitTimeSelectWidget, self).__init__(widgets, attrs)
 
     def decompress(self, value):
         # value arg in should be field's cleaned value
@@ -75,7 +73,7 @@ class SplitTimeSelectWidget(forms.MultiWidget):
 
             return [hour, round_to_five_minutes(min), am_or_pm,]
 
-class SplitTimeField(forms.MultiValueField):
+class SplitTimeField(django_forms.MultiValueField):
 
     FIELD_NAMES = ('hours', 'minutes', 'ampm',)
     widget = SplitTimeSelectWidget
@@ -85,11 +83,11 @@ class SplitTimeField(forms.MultiValueField):
         fields = []
         for field_name in self.FIELD_NAMES:
             choice = getattr(TimeOptionChoices, field_name)
-            choice_field = forms.ChoiceField(choices=choice())
+            choice_field = django_forms.ChoiceField(choices=choice())
             fields.append(choice_field)
         fields = tuple(fields)
 
-        super(SplitTimeSelectField, self).__init__(
+        super(SplitTimeField, self).__init__(
             fields, *args, **kwargs)
 
     def compress(self, data_list):
@@ -102,6 +100,7 @@ class SplitTimeField(forms.MultiValueField):
             min = data_list[1]
             am_or_pm = data_list[2]
 
-            s = time.strptime('{0}:{1} {2}'.format(hour, min, am_or_pm),
+            s = time.strptime('{0}:{1} {2}'.format(
+                hour, min, am_or_pm),
                 TIME_FORMAT)
             return s

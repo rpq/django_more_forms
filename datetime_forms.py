@@ -4,7 +4,8 @@ import itertools
 
 import pytz
 from django.utils import timezone
-from django import forms
+from django.forms import widgets as django_widgets
+from django import forms as django_forms
 from django.utils.safestring import mark_safe
 
 import time_forms
@@ -15,7 +16,7 @@ class DateOptionChoices(object):
 
     @classmethod
     def months(cls):
-        months = [(x, datetime.date(month=x,day=1,year=2010).strftime('%B'),) for x in xrange(1, 12)]
+        months = [(x, datetime.date(month=x,day=1,year=2010).strftime('%B'),) for x in xrange(1, 13)]
         months.insert(0, cls.BLANK_CHOICE)
         return months
 
@@ -31,25 +32,25 @@ class DateOptionChoices(object):
         years.insert(0, cls.BLANK_CHOICE)
         return years
 
-class MonthSelectWidget(forms.SelectWidget):
+class MonthSelectWidget(django_widgets.Select):
 
-    def __init__(self, attrs={'class': 'hours-select'}):
-        self.choices = DateOptionChoices.months()
+    def __init__(self, attrs={'class': 'months-select'}):
         super(MonthSelectWidget, self).__init__(attrs)
+        self.choices = DateOptionChoices.months()
 
-class DaySelectWidget(forms.SelectWidget):
+class DaySelectWidget(django_widgets.Select):
 
-    def __init__(self, attrs={'class': 'minutes-select'}):
-        self.choices = DateOptionChoices.days()
+    def __init__(self, attrs={'class': 'days-select'}):
         super(DaySelectWidget, self).__init__(attrs)
+        self.choices = DateOptionChoices.days()
 
-class YearSelectWidget(forms.SelectWidget):
+class YearSelectWidget(django_widgets.Select):
 
-    def __init__(self, attrs={'class': ampm-select}):
-        self.choices = DateOptionChoices.years()
+    def __init__(self, attrs={'class': 'years-select' }):
         super(YearSelectWidget, self).__init__(attrs)
+        self.choices = DateOptionChoices.years()
 
-class SplitDateSelectWidget(forms.MultiWidget):
+class SplitDateSelectWidget(django_widgets.MultiWidget):
 
     FIELD_NAMES = ('months', 'days', 'years',)
 
@@ -59,8 +60,7 @@ class SplitDateSelectWidget(forms.MultiWidget):
         widgets.append(DaySelectWidget())
         widgets.append(YearSelectWidget())
         widgets = tuple(widgets)
-        super(SplitDateSelectWidget, self).__init__(
-            widgets, attrs)
+        super(SplitDateSelectWidget, self).__init__(widgets, attrs)
 
     def render(self, *args, **kwargs):
         r = super(SplitDateSelectWidget, self).render(
@@ -76,7 +76,7 @@ class SplitDateSelectWidget(forms.MultiWidget):
             return [value.month, value.day, value.year,]
         return [None, None, None,]
 
-class SplitDateField(forms.MultiValueField):
+class SplitDateField(django_forms.MultiValueField):
 
     FIELD_NAMES = ('months', 'days', 'years',)
     widget = SplitDateSelectWidget
@@ -85,37 +85,51 @@ class SplitDateField(forms.MultiValueField):
         fields = []
         for field_name in self.FIELD_NAMES:
             choice = getattr(DateOptionChoices, field_name)
-            fields.append(forms.ChoiceField(choices=choice()))
+            fields.append(django_forms.ChoiceField(choices=choice()))
         fields = tuple(fields)
 
         super(SplitDateField, self).__init__(fields, *args, **kwargs)
 
     def compress(self, data_list):
+        if not data_list:
+            return None
+
         if data_list:
             to_dt = '%s/%s/%s' % (
                 data_list[0],
                 data_list[1],
                 data_list[2])
-            result = timezone.make_aware(
-                datetime.datetime.strptime(to_dt, '%m/%d/%Y'),
-                timezone.get_current_timezone())
+            result = datetime.datetime.strptime(to_dt, '%m/%d/%Y').date()
             return result
+
         return None
 
-class SplitDateTimeSelectWidget(SplitDateSelectWidget,
-    time_forms.SplitTimeSelectWidget):
+class SplitDateTimeSelectWidget(django_widgets.MultiWidget):
 
-    def __init__(self, attrs=None):
-        SplitDateSelectWidget.__init__(self, widgets, attrs)
-        time_forms.SplitTimeSelectWidget.__init__(self, widgets, attrs)
+    def __init__(self, attrs={'class': 'datetimeselect'}):
+        #self.widgets?
+        widgets = []
+        self.date_widgets = SplitDateSelectWidget(
+            attrs={ 'class': 'datetimeselect-date'})
+        self.time_widgets = time_forms.SplitTimeSelectWidget(
+            attrs={ 'class': 'datetimeselect-time' })
+        widgets.extend(self.date_widgets.widgets)
+        widgets.extend(self.time_widgets.widgets)
+        widgets = tuple(widgets)
+        super(SplitDateTimeSelectWidget, self).__init__(widgets, attrs)
 
     def render(self, *args, **kwargs):
         date_html = \
-            SplitDateSelectWidget.render(self, *args, **kwargs)
+            self.date_widgets.render(*args, **kwargs)
         time_html = \
-            time_forms.SplitTimeSelectWidget.__init__(self, *args,
-                **kwargs)
-        time_html = time_html.replace('<select class="hours-select" id="id_timestamp_3"', '</div><div class="control-group"><select class="hours-select" id="id_timestamp_3"')
+            self.time_widgets.render(*args, **kwargs)
+
+        # update ids to follow date renderings
+        time_html = time_html.replace('datetime_0', 'datetime_3')
+        time_html = time_html.replace('datetime_1', 'datetime_4')
+        time_html = time_html.replace('datetime_2', 'datetime_5')
+
+        time_html = time_html.replace('<select class="datetimeselect-time" name="datetime_3"', '</div><div class="control-group"><select class="datetimeselect-time" name="datetime_3"')
         return mark_safe(date_html + time_html)
 
     def decompress(self, value):
@@ -143,7 +157,7 @@ class SplitDateTimeSelectWidget(SplitDateSelectWidget,
 
         return [None, None, None, None, None, None]
 
-class SplitDateTimeSelectField(forms.MultiValueField):
+class SplitDateTimeSelectField(django_forms.MultiValueField):
 
     widget = SplitDateTimeSelectWidget
 
@@ -233,9 +247,6 @@ class TimeStampSet(object):
                     { field_name: timezone.now().time() })
         return kwargs
 
-
-
-
 # duration
 
 def _get_time_metric_choices():
@@ -244,10 +255,11 @@ def _get_time_metric_choices():
         ('hour', 'Hours',),)
     return TIME_METRIC_CHOICES
 
-class DurationForm(forms.Form):
+class DurationForm(django_forms.Form):
 
-    time_amount = forms.IntegerField(required=False, label="", min_value=1)
-    time_metric = forms.ChoiceField(required=False, label="",
+    time_amount = django_forms.IntegerField(required=False, label="",
+        min_value=1)
+    time_metric = django_forms.ChoiceField(required=False, label="",
         choices=_get_time_metric_choices())
 
     def clean(self):
@@ -261,3 +273,199 @@ class DurationForm(forms.Form):
             del cleaned_data['time_amount']
             del cleaned_data['time_metric']
         return cleaned_data
+
+
+if __name__ == '__main__':
+    import os, sys
+    sys.path.append(os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        'tests',
+        'django_more_forms_tests',))
+    os.environ['DJANGO_SETTINGS_MODULE'] = 'django_more_forms_tests.settings'
+
+    import unittest
+    from django.test import SimpleTestCase
+
+    class DateOptionChoicesTest(SimpleTestCase):
+        def setUp(self):
+            self.years = DateOptionChoices.years()
+            self.months = DateOptionChoices.months()
+            self.days = DateOptionChoices.days()
+
+        def test_months_choices_exist(self):
+            self.assertEqual(len(self.months), 12 + 1)
+
+        def test_days_choices_exist(self):
+            self.assertEqual(len(self.days), 31 + 1)
+
+        def test_years_choices_exist(self):
+            self.assertEqual(len(self.years), 5)
+
+        def test_blanks(self):
+            self.assertIn('---', map(lambda x: x[1], self.years))
+            self.assertIn('---', map(lambda x: x[1], self.months))
+            self.assertIn('---', map(lambda x: x[1], self.days))
+
+    class DateSelectWidgets(SimpleTestCase):
+
+        def setUp(self):
+            w = YearSelectWidget()
+            self.rendered_years = w.render('years', '')
+            w = MonthSelectWidget()
+            self.rendered_months = w.render('months', '')
+            w = DaySelectWidget()
+            self.rendered_days = w.render('days', '')
+
+        def test_year_widget(self):
+            w_rendered_expect = '<select class="years-select" name="years">'
+            self.assertIn(w_rendered_expect, self.rendered_years)
+
+            self.assertIn('<option ', self.rendered_years)
+            for value, display_value in DateOptionChoices.years():
+                self.assertIn(unicode(value), self.rendered_years)
+                self.assertIn(unicode(display_value), self.rendered_years)
+
+        def test_month_widget(self):
+            w_rendered_expect = \
+                '<select class="months-select" name="months">'
+            self.assertIn(w_rendered_expect, self.rendered_months)
+
+            self.assertIn('<option ', self.rendered_months)
+            for value, display_value in DateOptionChoices.months():
+                self.assertIn(unicode(value), self.rendered_months)
+                self.assertIn(unicode(display_value), self.rendered_months)
+
+        def test_day_widget(self):
+            w_rendered_expect = '<select class="days-select" name="days">'
+            self.assertIn(w_rendered_expect, self.rendered_days)
+
+            self.assertIn('<option ', self.rendered_days)
+            for value, display_value in DateOptionChoices.days():
+                self.assertIn(unicode(value), self.rendered_days)
+                self.assertIn(unicode(display_value), self.rendered_days)
+
+    class SplitDateSelectWidgetTest(SimpleTestCase):
+
+        def setUp(self):
+            self.w = SplitDateSelectWidget()
+            self.rendered = self.w.render('date-select', '')
+
+        def test_widget_rendering_all_widgets(self):
+            # tests render
+            self.assertIn('<select class="months-select" name="date-select_0"', self.rendered)
+            self.assertIn('<select class="days-select" name="date-select_1', self.rendered)
+            self.assertIn('<select class="years-select" name="date-select_2', self.rendered)
+
+        def test_widget_with_value(self):
+            # tests decompress
+            self.rendered = self.w.render('date-select', datetime.date.today())
+            month_assert = '<option value="{0}" selected="selected">'.format(
+                datetime.date.today().month)
+            year_assert = '<option value="{0}" selected="selected">'.format(
+                datetime.date.today().year)
+            day_assert = '<option value="{0}" selected="selected">'.format(
+                datetime.date.today().day)
+
+            self.assertIn(month_assert, self.rendered)
+            self.assertIn(year_assert, self.rendered)
+            self.assertIn(day_assert, self.rendered)
+
+    class SplitDateFieldTest(SimpleTestCase):
+
+        def test_date_field_create(self):
+            self.date_field = SplitDateField()
+            self.assertTrue(self.date_field)
+
+        def test_date_field_clean(self):
+            self.date_field = SplitDateField()
+            clean_value = self.date_field.clean(
+                [datetime.date.today().month,
+                datetime.date.today().day,
+                datetime.date.today().year])
+            self.assertEqual(clean_value.__class__.__name__, 'date')
+            self.assertEqual(datetime.date.today().month, clean_value.month)
+            self.assertEqual(datetime.date.today().year, clean_value.year)
+            self.assertEqual(datetime.date.today().day, clean_value.day)
+
+    class SplitDateTimeWidgetTest(SimpleTestCase):
+
+        def setUp(self):
+            w = SplitDateTimeSelectWidget()
+            self.rendered = w.render('datetime', '')
+
+        def test_year_widget(self):
+            w_rendered_expect = \
+                '<select class="datetimeselect-date" name="datetime_2">'
+            self.assertIn(w_rendered_expect, self.rendered)
+
+            self.assertIn('<option ', self.rendered)
+            for value, display_value in DateOptionChoices.years():
+                self.assertIn(unicode(value), self.rendered)
+                self.assertIn(unicode(display_value), self.rendered)
+
+        def test_month_widget(self):
+            w_rendered_expect = \
+                '<select class="datetimeselect-date" name="datetime_0">'
+            self.assertIn(w_rendered_expect, self.rendered)
+
+            self.assertIn('<option ', self.rendered)
+            for value, display_value in DateOptionChoices.months():
+                self.assertIn(unicode(value), self.rendered)
+                self.assertIn(unicode(display_value), self.rendered)
+
+        def test_day_widget(self):
+            w_rendered_expect = \
+                '<select class="datetimeselect-date" name="datetime_1">'
+            self.assertIn(w_rendered_expect, self.rendered)
+
+            self.assertIn('<option ', self.rendered)
+            for value, display_value in DateOptionChoices.days():
+                self.assertIn(unicode(value), self.rendered)
+                self.assertIn(unicode(display_value), self.rendered)
+
+        def test_hour_widget(self):
+            w_rendered_expect = \
+                '<select class="datetimeselect-time" name="datetime_3">'
+            self.assertIn(w_rendered_expect, self.rendered)
+
+            self.assertIn('<option ', self.rendered)
+            for value, display_value in time_forms.TimeOptionChoices.hours():
+                self.assertIn(unicode(value), self.rendered)
+                self.assertIn(unicode(display_value), self.rendered)
+
+        def test_minute_widget(self):
+            w_rendered_expect = \
+                '<select class="datetimeselect-time" name="datetime_4">'
+            self.assertIn(w_rendered_expect, self.rendered)
+
+            self.assertIn('<option ', self.rendered)
+            for value, display_value in time_forms.TimeOptionChoices.minutes():
+                self.assertIn(unicode(value), self.rendered)
+                self.assertIn(unicode(display_value), self.rendered)
+
+        def test_ampm_widget(self):
+            w_rendered_expect = \
+                '<select class="datetimeselect-time" name="datetime_5">'
+            self.assertIn(w_rendered_expect, self.rendered)
+
+            self.assertIn('<option ', self.rendered)
+            for value, display_value in time_forms.TimeOptionChoices.ampm():
+                self.assertIn(unicode(value), self.rendered)
+                self.assertIn(unicode(display_value), self.rendered)
+
+    class SplitDateTimeSelectFieldTest(SimpleTestCase):
+
+        def test_create(self):
+            field = SplitDateTimeSelectField()
+            self.assertTrue(field)
+
+        def test_clean_pass(self):
+            field = SplitDateTimeSelectField()
+            today = datetime.datetime.now()
+            value = field.clean([today.month, today.day, today.year,
+                today.hour,
+                time_forms.round_to_five_minutes(today.minute),
+                today.strftime("%p").lower()])
+            self.assertEqual(value.__class__.__name__, 'datetime')
+
+    unittest.main()
