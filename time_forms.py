@@ -302,11 +302,35 @@ if __name__ == '__main__':
             current_time = datetime.datetime.now().time()
             field = SplitTimeField()
             html_output = str(field.widget.render('testing', current_time))
-            hour_assert = '<option value="{0}" selected="selected">'.format(current_time.hour)
+            hour_assert = '<option value="{0}" selected="selected">'.format(to_12_hr(current_time.hour))
             minute_assert = '<option value="{0}" selected="selected">'.format(round_to_five_minutes(current_time.minute))
             ampm_assert = '<option value="{0}" selected="selected">'.format(get_ampm(current_time.hour).lower())
             self.assertIn(hour_assert, html_output)
             self.assertIn(minute_assert, html_output)
             self.assertIn(ampm_assert, html_output)
+
+    class TimeConversion(SimpleTestCase):
+
+        def test_to_24_input_is_twelve_pass(self):
+            valid = {
+                'am': dict([(i, i,) for i in range(1, 12)] + [(12, 0)]),
+                'pm': dict([(1, 13,), (2, 14,), (3, 15,), (4, 16,),
+                    (5, 17,), (6, 18,), (7, 19,), (8, 20,), (9, 21,),
+                    (10, 22,), (11, 23,), (12, 12,)])}
+            for am_pm in ['am', 'pm',]:
+                for v in range(1, 12):
+                    self.assertEqual(to_24_hr(v, am_pm), valid[am_pm][v])
+
+        def test_to_12_input_is_twenty_four_pass(self):
+            valid = [
+                (23, 11,), (22, 10,), (21, 9,), (20, 8,),
+                (19, 7,), (18, 6,), (17, 5,), (16, 4,),
+                (15, 3,), (14, 2,), (13, 1,), (12, 12,),
+                (11, 11,), (10, 10,), (9, 9,), (8, 8,),
+                (7, 7,), (6, 6,), (5, 5,), (4, 4,),
+                (3, 3,), (2, 2,), (1, 1,),]
+            for twenty_four, twelve in valid:
+                converted_twelve = to_12_hr(twenty_four)
+                self.assertEqual(twelve, converted_twelve)
 
     unittest.main()
