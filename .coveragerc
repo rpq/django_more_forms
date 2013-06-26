@@ -1,3 +1,3 @@
 [run]
 branch = True
-omit = /home/rpq/.python-ves/*
+omit = /home/rpq/.python-ves/*, tests/django_more_forms_tests/*

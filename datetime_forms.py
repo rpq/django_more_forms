@@ -157,7 +157,7 @@ class SplitDateTimeSelectWidget(django_widgets.MultiWidget):
 
         return [None, None, None, None, None, None]
 
-class SplitDateTimeSelectField(django_forms.MultiValueField):
+class SplitDateTimeField(django_forms.MultiValueField):
 
     widget = SplitDateTimeSelectWidget
 
@@ -166,7 +166,7 @@ class SplitDateTimeSelectField(django_forms.MultiValueField):
         fields.extend(SplitDateField().fields)
         fields.extend(time_forms.SplitTimeField().fields)
         fields = tuple(fields)
-        super(SplitDateTimeSelectField, self).__init__(fields, *args,
+        super(SplitDateTimeField, self).__init__(fields, *args,
             **kwargs)
 
     def compress(self, data_list):
@@ -186,7 +186,8 @@ class SplitDateTimeSelectField(django_forms.MultiValueField):
 class TimeStampSet(object):
 
     def _set_ts(self, field_name, kwargs):
-        current_timestamp = timezone.now()
+        current_timestamp = timezone.localtime(timezone.now())
+        print 'current_timestamp=%s' % current_timestamp
 
         if 'initial' not in kwargs:
             kwargs['initial'] = {}
@@ -232,15 +233,6 @@ class TimeStampSet(object):
             instance_ = kwargs.get('instance', None)
             if instance_ is not None:
                 value = getattr(instance_, field_name)
-                if not timezone.is_aware(value):
-                    value = datetime.datetime(
-                        month=4,
-                        day=22,
-                        year=2010,
-                        hour=value.hour,
-                        minute=value.minute,
-                        second=value.second,
-                        tzinfo=pytz.utc).time()
                 kwargs['initial'].update({ field_name: value })
             else:
                 kwargs['initial'].update(
@@ -453,14 +445,14 @@ if __name__ == '__main__':
                 self.assertIn(unicode(value), self.rendered)
                 self.assertIn(unicode(display_value), self.rendered)
 
-    class SplitDateTimeSelectFieldTest(SimpleTestCase):
+    class SplitDateTimeFieldTest(SimpleTestCase):
 
         def test_create(self):
-            field = SplitDateTimeSelectField()
+            field = SplitDateTimeField()
             self.assertTrue(field)
 
         def test_clean_pass(self):
-            field = SplitDateTimeSelectField()
+            field = SplitDateTimeField()
             today = datetime.datetime.now()
             value = field.clean([today.month, today.day, today.year,
                 today.hour,
