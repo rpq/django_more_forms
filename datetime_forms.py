@@ -191,7 +191,6 @@ class TimeStampSet(object):
 
     def _set_ts(self, field_name, kwargs):
         current_timestamp = timezone.localtime(timezone.now())
-        print 'current_timestamp=%s' % current_timestamp
 
         if 'initial' not in kwargs:
             kwargs['initial'] = {}
@@ -212,7 +211,7 @@ class TimeStampSet(object):
             kwargs['initial'].update(
                 { field_name: getattr(kwargs.get('instance'), field_name) })
         else:
-            kwargs['initial'].update({ field_name: timezone.now().time() })
+            kwargs['initial'].update({ field_name: timezone.localtime(timezone.now()).time() })
         return kwargs
 
     def _set_datetime_on(self, field_names, kwargs):
