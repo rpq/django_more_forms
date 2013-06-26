@@ -125,9 +125,13 @@ class SplitDateTimeSelectWidget(django_widgets.MultiWidget):
             self.time_widgets.render(*args, **kwargs)
 
         # update ids to follow date renderings
-        time_html = time_html.replace('datetime_0', 'datetime_3')
-        time_html = time_html.replace('datetime_1', 'datetime_4')
-        time_html = time_html.replace('datetime_2', 'datetime_5')
+        field_name = args[0]
+        time_html = time_html.replace('{0}_0'.format(field_name),
+            '{0}_3'.format(field_name))
+        time_html = time_html.replace('{0}_1'.format(field_name),
+            '{0}_4'.format(field_name))
+        time_html = time_html.replace('{0}_2'.format(field_name),
+            '{0}_5'.format(field_name))
 
         time_html = time_html.replace('<select class="datetimeselect-time" name="datetime_3"', '</div><div class="control-group"><select class="datetimeselect-time" name="datetime_3"')
         return mark_safe(date_html + time_html)
