@@ -463,4 +463,27 @@ if __name__ == '__main__':
                 today.strftime("%p").lower()])
             self.assertEqual(value.__class__.__name__, 'datetime')
 
+        def test_initial_current_datetime_time_unaware(self):
+            current_time = datetime.datetime.now()
+            field = SplitDateTimeField()
+            html_output = str(field.widget.render('testing', current_time))
+            hour_assert = '<option value="{0}" selected="selected">'.format(time_forms.to_12_hr(current_time.hour))
+            minute_assert = '<option value="{0}" selected="selected">'.format(time_forms.round_to_five_minutes(current_time.minute))
+            ampm_assert = '<option value="{0}" selected="selected">'.format(time_forms.get_ampm(current_time.hour).lower())
+            self.assertIn(hour_assert, html_output)
+            self.assertIn(minute_assert, html_output)
+            self.assertIn(ampm_assert, html_output)
+
+        def test_initial_current_datetime_time_aware(self):
+            current_time = timezone.now()
+            current_time = timezone.localtime(current_time)
+            field = SplitDateTimeField()
+            html_output = str(field.widget.render('testing', current_time))
+            hour_assert = '<option value="{0}" selected="selected">'.format(time_forms.to_12_hr(current_time.hour))
+            minute_assert = '<option value="{0}" selected="selected">'.format(time_forms.round_to_five_minutes(current_time.minute))
+            ampm_assert = '<option value="{0}" selected="selected">'.format(time_forms.get_ampm(current_time.hour).lower())
+            self.assertIn(hour_assert, html_output)
+            self.assertIn(minute_assert, html_output)
+            self.assertIn(ampm_assert, html_output)
+
     unittest.main()

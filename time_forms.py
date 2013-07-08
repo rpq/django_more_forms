@@ -2,6 +2,7 @@ import datetime
 import math
 import time
 
+from django.utils import timezone
 from django.forms import widgets as django_widgets
 from django import forms as django_forms
 
@@ -117,6 +118,8 @@ class SplitTimeSelectWidget(django_widgets.MultiWidget):
             return [None, None, None]
 
         if value:
+            if timezone.is_aware(value):
+                value = timezone.localtime(value)
             hour = to_12_hr(value.hour)
             min = round_to_five_minutes(value.minute)
             am_or_pm = get_ampm(value.hour).lower()
